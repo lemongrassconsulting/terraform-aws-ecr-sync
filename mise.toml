@@ -1,0 +1,22 @@
+[hooks]
+enter = "mise install && mise configure"
+
+[tools]
+terraform = '1'
+pre-commit = '4'
+checkov = '3'
+terraform-docs = '0'
+tflint = '0'
+terragrunt = '0'
+
+[tasks.check]
+description = "Run all pre-commit hooks"
+run = "pre-commit run --all-files"
+
+[tasks.pre-commit-install]
+description = "Install pre-commit hooks"
+run = "pre-commit install"
+
+[tasks.configure]
+description = "Configure the environment"
+depends = ["pre-commit-install"]
