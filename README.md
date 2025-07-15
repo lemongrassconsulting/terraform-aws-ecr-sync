@@ -20,7 +20,7 @@ The containerized Go application uses the [crane](https://github.com/google/go-c
 
 This entire process is **pull-only** from the perspective of the source account. The task in your account initiates all connections, which is a security best practice. It only requires the source account to have a resource-based policy on its ECR repositories that grants your account pull access. No IAM roles or outbound connections are needed from the source account.
 
-::: mermaid
+```mermaid
 graph TD
 subgraph "Source AWS Account"
 SourceECR[("Source ECR Repository")]
@@ -38,8 +38,7 @@ end
 
     FargateTask -->|PULLS image data via HTTPS| SourceECR
     FargateTask -->|PUSHES image data via HTTPS| DestinationECR
-
-:::
+```
 
 ---
 
