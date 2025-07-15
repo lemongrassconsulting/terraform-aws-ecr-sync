@@ -1,0 +1,69 @@
+minimum_pre_commit_version: "3.4.0"
+
+exclude: '/examples/\.*'
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=2048]
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-yaml
+      - id: check-json
+      - id: check-toml
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.27.2
+    hooks:
+      - id: gitleaks
+        exclude: '\.enc$' # Ignore encrypted files
+
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v4.8.3
+    hooks:
+      - id: commitizen
+        stages: [commit-msg]
+
+  - repo: local
+    hooks:
+      - id: prettier
+        name: prettier formatter
+        language: node
+        language_version: "24.2.0"
+        entry: prettier
+        additional_dependencies: [prettier@3.2.5]
+        args: ["--write", "--print-width", "120"]
+        types_or: [yaml, json, markdown]
+
+  - repo: https://github.com/gruntwork-io/pre-commit
+    rev: v0.1.29
+    hooks:
+      - id: terragrunt-hclfmt
+
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.99.4
+    hooks:
+      - id: terraform_fmt
+      - id: terraform_docs
+        args:
+          - --hook-config=--create-file-if-not-exist=true
+          - --hook-config=--sort-by=required
+          - --args=--config=.terraform-docs.yml
+      - id: terraform_tflint
+        args:
+          - --args=--enable-rule=terraform_documented_variables
+          - --args=--enable-rule=terraform_documented_outputs
+          - --args=--enable-rule=terraform_naming_convention
+          - --args=--enable-rule=terraform_unused_required_providers
+
+  - repo: https://github.com/bridgecrewio/checkov.git
+    rev: "3.2.443"
+    hooks:
+      - id: checkov
+        args: ["--quiet"]
+        exclude: "^/examples/.*$"

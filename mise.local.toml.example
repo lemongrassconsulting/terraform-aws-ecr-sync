@@ -1,0 +1,7 @@
+# Local overrides for ECR push configuration
+# Copy this file to mise.local.toml and fill in your details.
+# This file is ignored by git.
+[env]
+AWS_ACCOUNT_ID = "YOUR_AWS_ACCOUNT_ID"
+AWS_REGION = "YOUR_AWS_REGION"
+ECR_REPO_NAME = "ecr-pull-sync"
