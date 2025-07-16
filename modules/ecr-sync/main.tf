@@ -55,7 +55,6 @@ locals {
         element(split(".", element(split("/", repo.source), 0)), 0),
         split("/", join("/", slice(split("/", repo.source), 1, length(split("/", repo.source)))))[0]
       ) :
-      # It's a simple name
       "arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/${split("/", repo.source)[0]}/*"
     )
   ])
