@@ -92,6 +92,11 @@ locals {
         Action   = ["ecr:GetAuthorizationToken"]
         Effect   = "Allow"
         Resource = "*"
+      },
+      {
+        Action   = ["ecr:DescribeRepositories"]
+        Effect   = "Allow"
+        Resource = "arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/*"
       }
     ],
     # Read permissions
