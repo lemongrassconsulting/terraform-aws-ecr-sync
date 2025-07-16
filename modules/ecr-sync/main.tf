@@ -44,18 +44,19 @@ locals {
   # string. The source can be a full ECR URI (e.g.,
   # <account_id>.dkr.ecr.<region>.amazonaws.com/<repo_name>) or a simple
   # repository name for repositories in the current account and region.
+  # To keep the policy size small, we use a wildcard based on the first part of the repo path.
   source_repo_arns = distinct([
     for repo in var.config.repos :
     (
       strcontains(repo.source, ".dkr.ecr.") ?
       # It's a full URI
-      format("arn:aws:ecr:%s:%s:repository/%s",
+      format("arn:aws:ecr:%s:%s:repository/%s/*",
         element(split(".", element(split("/", repo.source), 0)), 3),
         element(split(".", element(split("/", repo.source), 0)), 0),
-        join("/", slice(split("/", repo.source), 1, length(split("/", repo.source))))
+        split("/", join("/", slice(split("/", repo.source), 1, length(split("/", repo.source)))))[0]
       ) :
       # It's a simple name
-      "arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/${repo.source}"
+      "arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/${split("/", repo.source)[0]}/*"
     )
   ])
 
@@ -63,10 +64,11 @@ locals {
   # destination repositories are in the same AWS account and region where the
   # module is deployed. If a destination is not specified, it defaults to the
   # source repository name.
+  # To keep the policy size small, we use a wildcard based on the first part of the repo path.
   destination_repo_arns = distinct([
     for repo in var.config.repos :
     "arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/${
-      coalesce(
+      split("/", coalesce(
         repo.destination,
         (
           strcontains(repo.source, ".dkr.ecr.") ?
@@ -75,8 +77,8 @@ locals {
           # Or use the source as is (simple name)
           repo.source
         )
-      )
-    }"
+      ))[0]
+    }/*"
   ])
 
   all_repo_arns = distinct(concat(local.source_repo_arns, local.destination_repo_arns))
