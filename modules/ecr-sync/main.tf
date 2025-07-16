@@ -38,6 +38,65 @@ locals {
   ))
 
   env_file_content = join("\n", local.all_vars)
+
+  # --- ECR Repository ARNs for IAM Policy ---
+  source_repo_arns = [
+    for repo in var.config.repos : "arn:aws:ecr:${split(".", split("/", repo.source)[0])[3]}:${split(".", split("/", repo.source)[0])[0]}:repository/${split("/", repo.source)[1]}"
+  ]
+
+  destination_repo_arns = [
+    for repo in var.config.repos : "arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/${coalesce(repo.destination, split("/", repo.source)[1])}"
+  ]
+
+  all_repo_arns = distinct(concat(local.source_repo_arns, local.destination_repo_arns))
+
+  # --- IAM Policy Statements ---
+  ecr_policy_statements = concat(
+    [
+      {
+        Action   = ["ecr:GetAuthorizationToken"]
+        Effect   = "Allow"
+        Resource = "*"
+      }
+    ],
+    # Read permissions
+    length(local.all_repo_arns) > 0 ? [
+      {
+        Action = [
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:GetRepositoryPolicy",
+          "ecr:DescribeRepositories",
+          "ecr:ListImages",
+          "ecr:DescribeImages",
+          "ecr:BatchGetImage",
+        ]
+        Effect   = "Allow"
+        Resource = local.all_repo_arns
+      }
+    ] : [],
+    # Write permissions
+    length(local.destination_repo_arns) > 0 ? [
+      {
+        Action = [
+          "ecr:InitiateLayerUpload",
+          "ecr:UploadLayerPart",
+          "ecr:CompleteLayerUpload",
+          "ecr:PutImage",
+        ]
+        Effect   = "Allow"
+        Resource = local.destination_repo_arns
+      }
+    ] : [],
+    # Create repository permission
+    var.config.mode == "create" && length(local.destination_repo_arns) > 0 ? [
+      {
+        Action   = ["ecr:CreateRepository"]
+        Effect   = "Allow"
+        Resource = local.destination_repo_arns
+      }
+    ] : []
+  )
 }
 
 data "aws_caller_identity" "current" {}
@@ -59,15 +118,58 @@ data "aws_subnets" "default" {
 
 # --- S3 Bucket for Environment File ---
 resource "aws_s3_bucket" "config" {
-  bucket        = "${var.namespace}-ecr-pull-sync-config-${data.aws_caller_identity.current.account_id}"
+  bucket        = var.s3_bucket_name == null ? "${var.namespace}-ecr-pull-sync-config-${data.aws_caller_identity.current.account_id}" : var.s3_bucket_name
   force_destroy = true
-  #checkov:skip=CKV_AWS_21:All config files come from source control, so versioning is not necessary.
-  #checkov:skip=CKV2_AWS_61:Lifecycle rules are not necessary for this bucket as it only stores a simple config file.
-  #checkov:skep=CKV_AWS_18:Access logging is not necessary for this bucket as it only stores a simple config file.
-  #checkov:skip=CKV_AWS_145:KMS encryption is not necessary for this bucket as it only stores a simple config file.
   #checkov:skip=CKV_AWS_144:Cross-region replication is not necessary for this bucket as it only stores a simple config file.
   #checkov:skip=CKV2_AWS_62:Notifications are not necessary for this bucket as it only stores a simple config file.
-  #checkov:skip=CKV_AWS_18:Logging is not necessary for this bucket as it only stores a simple config file.
+}
+
+resource "aws_s3_bucket_logging" "config" {
+  count = var.s3_bucket_access_logging_target_bucket != null ? 1 : 0
+
+  bucket = aws_s3_bucket.config.id
+
+  target_bucket = var.s3_bucket_access_logging_target_bucket
+  target_prefix = var.s3_bucket_access_logging_target_prefix
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "config" {
+  bucket = aws_s3_bucket.config.id
+
+  rule {
+    id     = "expire-noncurrent-versions"
+    status = "Enabled"
+
+    noncurrent_version_expiration {
+      noncurrent_days = var.s3_bucket_noncurrent_version_expiration_days
+    }
+  }
+
+  rule {
+    id     = "abort-incomplete-multipart-uploads"
+    status = "Enabled"
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = var.s3_bucket_abort_incomplete_multipart_upload_days
+    }
+  }
+}
+
+resource "aws_s3_bucket_versioning" "config" {
+  bucket = aws_s3_bucket.config.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "config" {
+  bucket = aws_s3_bucket.config.id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm     = var.s3_bucket_kms_key_arn != null ? "aws:kms" : "AES256"
+      kms_master_key_id = var.s3_bucket_kms_key_arn
+    }
+  }
 }
 
 resource "aws_s3_bucket_public_access_block" "config" {
@@ -181,6 +283,51 @@ resource "aws_iam_role_policy_attachment" "s3_config_access" {
   policy_arn = aws_iam_policy.s3_config_access.arn
 }
 
+resource "aws_iam_policy" "task_execution_kms_policy" {
+  count = var.task_log_kms_key_id != null ? 1 : 0
+  name  = "${var.namespace}-task-execution-kms-policy"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+          "kms:GenerateDataKey",
+          "kms:Decrypt"
+        ]
+        Effect   = "Allow"
+        Resource = var.task_log_kms_key_id
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "task_execution_kms_policy" {
+  count      = var.task_log_kms_key_id != null ? 1 : 0
+  role       = aws_iam_role.task_execution_role.name
+  policy_arn = aws_iam_policy.task_execution_kms_policy[0].arn
+}
+
+resource "aws_iam_policy" "s3_kms_policy" {
+  count = var.s3_bucket_kms_key_arn != null ? 1 : 0
+  name  = "${var.namespace}-s3-kms-policy"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action   = "kms:Decrypt"
+        Effect   = "Allow"
+        Resource = var.s3_bucket_kms_key_arn
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "s3_kms_policy" {
+  count      = var.s3_bucket_kms_key_arn != null ? 1 : 0
+  role       = aws_iam_role.task_execution_role.name
+  policy_arn = aws_iam_policy.s3_kms_policy[0].arn
+}
+
 
 resource "aws_iam_role" "task_role" {
   name = "${var.namespace}-task-role"
@@ -202,38 +349,42 @@ resource "aws_iam_policy" "task_policy" {
   name        = "${var.namespace}-task-policy"
   description = "Policy for the ECR Pull Sync task."
   policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = [
-          "ecr:GetAuthorizationToken",
-          "ecr:BatchCheckLayerAvailability",
-          "ecr:GetDownloadUrlForLayer",
-          "ecr:GetRepositoryPolicy",
-          "ecr:DescribeRepositories",
-          "ecr:ListImages",
-          "ecr:DescribeImages",
-          "ecr:BatchGetImage",
-          "ecr:InitiateLayerUpload",
-          "ecr:UploadLayerPart",
-          "ecr:CompleteLayerUpload",
-          "ecr:PutImage"
-        ]
-        Effect   = "Allow"
-        Resource = "*"
-      },
-      {
-        Action   = "ecr:CreateRepository"
-        Effect   = var.config.mode == "create" ? "Allow" : "Deny"
-        Resource = "*"
-      }
-    ]
+    Version   = "2012-10-17"
+    Statement = local.ecr_policy_statements
   })
 }
 
 resource "aws_iam_role_policy_attachment" "task_role_policy" {
   role       = aws_iam_role.task_role.name
   policy_arn = aws_iam_policy.task_policy.arn
+}
+
+resource "aws_iam_policy" "task_kms_policy" {
+  count = var.config.repo_defaults.kms_key_arn != null ? 1 : 0
+  name  = "${var.namespace}-task-kms-policy"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+          "kms:CreateGrant",
+          "kms:DescribeKey",
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:GenerateDataKey",
+          "kms:GenerateDataKeyWithoutPlaintext"
+        ]
+        Effect   = "Allow"
+        Resource = var.config.repo_defaults.kms_key_arn
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "task_kms_policy" {
+  count      = var.config.repo_defaults.kms_key_arn != null ? 1 : 0
+  role       = aws_iam_role.task_role.name
+  policy_arn = aws_iam_policy.task_kms_policy[0].arn
 }
 
 # --- EventBridge Scheduler ---

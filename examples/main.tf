@@ -26,4 +26,11 @@ module "ecr_pull_sync" {
   task_vpc_id           = var.task_vpc_id
   task_subnet_ids       = var.task_subnet_ids
   task_assign_public_ip = var.task_assign_public_ip
+
+  s3_bucket_kms_key_arn                            = var.s3_bucket_kms_key_arn
+  s3_bucket_noncurrent_version_expiration_days     = var.s3_bucket_noncurrent_version_expiration_days
+  s3_bucket_access_logging_target_bucket           = var.s3_bucket_access_logging_target_bucket
+  s3_bucket_access_logging_target_prefix           = var.s3_bucket_access_logging_target_prefix
+  s3_bucket_name                                   = var.s3_bucket_name
+  s3_bucket_abort_incomplete_multipart_upload_days = var.s3_bucket_abort_incomplete_multipart_upload_days
 }

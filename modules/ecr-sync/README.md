@@ -1,221 +1,91 @@
-# Terraform AWS ECR Pull-Sync Module
+# ecr-sync
 
-This repository contains a self-contained solution for replicating ECR images from a source account to a consumer account using a pull-based model.
+<!-- BEGIN_TF_DOCS -->
+<!-- prettier-ignore-start -->
 
-It is a reusable Terraform Module that you can use to deploy the solution in your own AWS account. It deploys a companion Go application that runs in a Fargate task to perform the synchronization.
-Container is available to customers on request.
+## Requirements
 
----
+| Name | Version |
+|------|---------|
+| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | ~> 1.0 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 5.0 |
 
-## Architecture Overview
+## Providers
 
-The solution works by deploying an AWS Fargate task into your (the consumer's) AWS account. This task runs on a schedule defined by an EventBridge cron job.
+| Name | Version |
+|------|---------|
+| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 5.0 |
 
-The containerized Go application uses the [crane](https://github.com/google/go-containerregistry/blob/main/cmd/crane/README.md) tool to perform the following steps:
+## Modules
 
-1. **Fetch Configuration**: On startup, the Fargate task loads its configuration from an environment file stored in an S3 bucket. This file defines the sync mode, repositories, and tags to process.
-2. **List Repositories**: It iterates through the repositories defined in the configuration.
-3. **List Tags**: For each repository, it lists all available image tags.
-4. **Filter and Copy**: It compares each tag against the user-defined filter patterns. For each match, it executes a `crane copy` command, which efficiently streams the image from the source to the destination ECR without needing to store it on disk.
+No modules.
 
-This entire process is **pull-only** from the perspective of the source account. The task in your account initiates all connections, which is a security best practice. It only requires the source account to have a resource-based policy on its ECR repositories that grants your account pull access. No IAM roles or outbound connections are needed from the source account.
+## Resources
 
-::: mermaid
-graph TD
-subgraph "Source AWS Account"
-SourceECR[("Source ECR Repository")]
-end
+| Name | Type |
+|------|------|
+| [aws_cloudwatch_event_rule.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_rule) | resource |
+| [aws_cloudwatch_event_target.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_target) | resource |
+| [aws_cloudwatch_log_group.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_group) | resource |
+| [aws_ecs_cluster.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/ecs_cluster) | resource |
+| [aws_ecs_task_definition.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/ecs_task_definition) | resource |
+| [aws_iam_policy.eventbridge_policy](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_policy) | resource |
+| [aws_iam_policy.s3_config_access](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_policy) | resource |
+| [aws_iam_policy.s3_kms_policy](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_policy) | resource |
+| [aws_iam_policy.task_execution_kms_policy](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_policy) | resource |
+| [aws_iam_policy.task_kms_policy](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_policy) | resource |
+| [aws_iam_policy.task_policy](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_policy) | resource |
+| [aws_iam_role.eventbridge_role](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
+| [aws_iam_role.task_execution_role](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
+| [aws_iam_role.task_role](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
+| [aws_iam_role_policy_attachment.eventbridge_policy](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
+| [aws_iam_role_policy_attachment.s3_config_access](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
+| [aws_iam_role_policy_attachment.s3_kms_policy](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
+| [aws_iam_role_policy_attachment.task_execution_kms_policy](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
+| [aws_iam_role_policy_attachment.task_execution_role](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
+| [aws_iam_role_policy_attachment.task_kms_policy](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
+| [aws_iam_role_policy_attachment.task_role_policy](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
+| [aws_s3_bucket.config](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket) | resource |
+| [aws_s3_bucket_lifecycle_configuration.config](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_lifecycle_configuration) | resource |
+| [aws_s3_bucket_logging.config](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_logging) | resource |
+| [aws_s3_bucket_public_access_block.config](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_public_access_block) | resource |
+| [aws_s3_bucket_server_side_encryption_configuration.config](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_server_side_encryption_configuration) | resource |
+| [aws_s3_bucket_versioning.config](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_versioning) | resource |
+| [aws_s3_object.config](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_object) | resource |
+| [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
+| [aws_region.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/region) | data source |
+| [aws_subnets.default](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/subnets) | data source |
+| [aws_vpc.default](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/vpc) | data source |
 
-    subgraph "Your AWS Account (Consumer)"
-        EventBridge(EventBridge Scheduler)
-        FargateTask{"Fargate Task<br>(crane wrapper)"}
-        DestinationECR[("Your ECR Repository")]
-        S3Object[("S3 Object<br>.env Config")]
+## Inputs
 
-        EventBridge -->|Triggers on schedule| FargateTask
-        FargateTask -->|Fetches config from| S3Object
-    end
+| Name | Description | Type | Default | Required |
+|------|-------------|------|---------|:--------:|
+| <a name="input_namespace"></a> [namespace](#input\_namespace) | Namespace for all resources. | `string` | n/a | yes |
+| <a name="input_task_image_uri"></a> [task\_image\_uri](#input\_task\_image\_uri) | URI of the container image for the sync task. | `string` | n/a | yes |
+| <a name="input_config"></a> [config](#input\_config) | A map defining the sync behavior, including mode, repositories and repo\_defaults. | <pre>object({<br/>    mode = optional(string, "create")<br/>    repos = optional(list(object({<br/>      source      = string<br/>      destination = optional(string)<br/>      tags        = list(string)<br/>    })), [])<br/>    repo_defaults = optional(object({<br/>      scan_on_push     = optional(bool, true)<br/>      tag_immutability = optional(bool, true)<br/>      encryption_type  = optional(string, "AES256")<br/>      kms_key_arn      = optional(string)<br/>    }), {})<br/>  })</pre> | `{}` | no |
+| <a name="input_s3_bucket_abort_incomplete_multipart_upload_days"></a> [s3\_bucket\_abort\_incomplete\_multipart\_upload\_days](#input\_s3\_bucket\_abort\_incomplete\_multipart\_upload\_days) | Optional: The number of days after which to abort incomplete multipart uploads. Defaults to 7. | `number` | `7` | no |
+| <a name="input_s3_bucket_access_logging_target_bucket"></a> [s3\_bucket\_access\_logging\_target\_bucket](#input\_s3\_bucket\_access\_logging\_target\_bucket) | Optional: The name of the S3 bucket to use for access logging. If not provided, access logging will be disabled. | `string` | `null` | no |
+| <a name="input_s3_bucket_access_logging_target_prefix"></a> [s3\_bucket\_access\_logging\_target\_prefix](#input\_s3\_bucket\_access\_logging\_target\_prefix) | Optional: The prefix to use for access logs. Defaults to 'log/'. | `string` | `"log/"` | no |
+| <a name="input_s3_bucket_kms_key_arn"></a> [s3\_bucket\_kms\_key\_arn](#input\_s3\_bucket\_kms\_key\_arn) | Optional: The ARN of the KMS key to use for encrypting the S3 bucket. If not provided, AES256 encryption will be used. | `string` | `null` | no |
+| <a name="input_s3_bucket_name"></a> [s3\_bucket\_name](#input\_s3\_bucket\_name) | Optional: The name of the S3 bucket to create. If not provided, a name will be generated. | `string` | `null` | no |
+| <a name="input_s3_bucket_noncurrent_version_expiration_days"></a> [s3\_bucket\_noncurrent\_version\_expiration\_days](#input\_s3\_bucket\_noncurrent\_version\_expiration\_days) | Optional: The number of days to keep noncurrent object versions in the S3 bucket. Defaults to 30. | `number` | `30` | no |
+| <a name="input_schedule"></a> [schedule](#input\_schedule) | Cron expression for the Fargate task. | `string` | `"rate(15 minutes)"` | no |
+| <a name="input_task_assign_public_ip"></a> [task\_assign\_public\_ip](#input\_task\_assign\_public\_ip) | Whether to assign a public IP to the Fargate task. Should be false for private subnets. | `bool` | `true` | no |
+| <a name="input_task_ephemeral_storage_size"></a> [task\_ephemeral\_storage\_size](#input\_task\_ephemeral\_storage\_size) | Size of the ephemeral storage for the Fargate task in GiB. | `number` | `null` | no |
+| <a name="input_task_image_tag"></a> [task\_image\_tag](#input\_task\_image\_tag) | Tag of the container image for the sync task. | `string` | `"latest"` | no |
+| <a name="input_task_log_kms_key_id"></a> [task\_log\_kms\_key\_id](#input\_task\_log\_kms\_key\_id) | The ARN of the KMS key to use for encrypting the task's CloudWatch log group. Defaults to the AWS-managed key if null. | `string` | `null` | no |
+| <a name="input_task_log_retention"></a> [task\_log\_retention](#input\_task\_log\_retention) | The task's CloudWatch log retention in days. | `number` | `30` | no |
+| <a name="input_task_subnet_ids"></a> [task\_subnet\_ids](#input\_task\_subnet\_ids) | Optional: A list of subnet IDs to deploy the Fargate task into. Required if vpc\_id is provided. | `list(string)` | `null` | no |
+| <a name="input_task_vpc_id"></a> [task\_vpc\_id](#input\_task\_vpc\_id) | Optional: The ID of the VPC to deploy the Fargate task into. If not provided, the default VPC is used. | `string` | `null` | no |
 
-    FargateTask -->|PULLS image data via HTTPS| SourceECR
-    FargateTask -->|PUSHES image data via HTTPS| DestinationECR
+## Outputs
 
-:::
+| Name | Description |
+|------|-------------|
+| <a name="output_cloudwatch_log_group_name"></a> [cloudwatch\_log\_group\_name](#output\_cloudwatch\_log\_group\_name) | The name of the CloudWatch log group. |
+| <a name="output_ecs_cluster_name"></a> [ecs\_cluster\_name](#output\_ecs\_cluster\_name) | The name of the ECS cluster. |
+| <a name="output_ecs_task_definition_arn"></a> [ecs\_task\_definition\_arn](#output\_ecs\_task\_definition\_arn) | The ARN of the ECS task definition. |
 
----
-
-## For Consumers: How to Use This Module
-
-To use this solution, you only need to reference the Terraform module in your own infrastructure code. You can build the container yourself or point to a pre-built image that we provide.
-
-### Prerequisites
-
-- Terraform `~> 1.0`
-- An existing ECR repository to pull the container image from.
-
-### Usage
-
-Here is an example of how to use the module in your Terraform code. For a complete, working example, see the `./basic-deployment` directory.
-
-The module is called from your `main.tf`. You define input variables (typically in `variables.tf`) and provide their values in a `terraform.tfvars` or `*.auto.tfvars` file. The main configuration is passed via a single `config` object.
-
-**`example.auto.tfvars`**
-
-```hcl
-# This file contains example configuration.
-# Terraform automatically loads variables from files ending in .auto.tfvars.
-
-# --- Required Configuration ---
-namespace      = "example-ecr-sync"
-task_image_uri = "111122223333.dkr.ecr.us-east-1.amazonaws.com/ecr-pull-sync" # Replace with your image URI
-
-# --- Main Application Configuration ---
-# This object defines the entire behavior of the sync application.
-config = {
-  mode = "create" # Can be "create" or "refresh"
-  repos = [
-    {
-      source = "111122223333.dkr.ecr.us-east-1.amazonaws.com/my-app"
-      tags   = ["v1.*", "latest"]
-    },
-    {
-      source      = "111122223333.dkr.ecr.us-east-1.amazonaws.com/another-app"
-      destination = "renamed-app"
-      tags        = ["stable"]
-    }
-  ]
-  repo_defaults = {
-    scan_on_push     = true
-    tag_immutability = true
-    encryption_type  = "AES256" # Can be "AES256" or "KMS"
-    # kms_key_arn      = "arn:aws:kms:us-east-1:111122223333:key/your-repo-kms-key-id"
-  }
-}
-```
-
-**`main.tf`**
-
-```hcl
-module "ecr_pull_sync" {
-  # It is recommended to source the module from the Git repository directly,
-  # pinning to a specific release tag for stability.
-  source = "github.com/lcp-global/terraform-aws-ecr-sync?ref=v1.0.0"
-
-  # --- Required ---
-  namespace      = var.namespace
-  task_image_uri = var.task_image_uri
-  config         = var.config
-
-  # --- Optional ---
-  schedule       = var.schedule
-  task_image_tag = var.task_image_tag
-  # ... other variables can be passed here
-}
-```
-
-### Configuration
-
-#### Configuration (`config` variable)
-
-You must provide a single configuration object that defines the entire sync behavior. This is typically done in a `.tfvars` file. The `config` object has the following structure:
-
-- **`mode`** (Optional `string`): The sync mode. Defaults to `create`.
-  - `create`: **(Default)** Ensures all repositories listed in `repos` exist in the destination and syncs all matching tags. It will create any missing repositories in your account.
-  - `refresh`: Copies images only for repositories that **already exist** in your account. Use this if you manage repository creation through a separate IaC process.
-- **`repos`** (Optional `list(object)`): A list of repository configurations to sync.
-  - **`source`**: The full URI of the source repository (e.g., `111122223333.dkr.ecr.us-east-1.amazonaws.com/my-app/backend`). This field does **not** support glob patterns.
-  - **`destination`** (Optional `string`): A custom name for the repository in the destination account. If omitted, the name is derived from the source path (e.g., `my-app/backend`).
-  - **`tags`** (Optional `list(string)`): A list of glob patterns to filter which image tags are synced. If omitted, all tags (`**`) are synced.
-- **`repo_defaults`** (Optional `object`): Default settings for any repositories created by the module when `mode` is `create`.
-  - **`scan_on_push`** (Optional `bool`): Default setting for scanning images on push. Defaults to `true`.
-  - **`tag_immutability`** (Optional `bool`): Default setting for tag immutability. Defaults to `true`.
-  - **`encryption_type`** (Optional `string`): Default encryption type. Can be `AES256` or `KMS`. Defaults to `AES256`.
-  - **`kms_key_arn`** (Optional `string`): The ARN of the KMS key to use if `encryption_type` is `KMS`.
-
-**Glob Patterns for Tags:**
-
-| Pattern       | Meaning                                                              |
-| :------------ | :------------------------------------------------------------------- |
-| `*`           | Matches any sequence of characters, but **not** a `/`.               |
-| `**`          | Matches any sequence of characters, **including** a `/`.             |
-| `?`           | Matches any single non-separator character.                          |
-| `{alt1,alt2}` | Matches if any of the alternatives (e.g., `latest`, `stable`) match. |
-
-**Evaluation Logic:**
-
-1. The application iterates through the list of repositories defined in the `repos` block.
-2. For each repository, it lists all available tags from the `source`.
-3. It then filters this list of tags against the provided `tags` patterns.
-4. Any tag matching at least one pattern will be synced.
-
-**Example `config` object in a `.tfvars` file:**
-
-```hcl
-config = {
-  # The top-level 'mode' can be 'create' or 'refresh'.
-  mode = "create"
-
-  # 'repos' is a list of source repositories to sync from.
-  repos = [
-    # Example 1: Sync all tags from a specific source repository.
-    # The destination repository will be named 'my-app/backend'.
-    {
-      source = "111122223333.dkr.ecr.us-east-1.amazonaws.com/my-app/backend"
-    },
-
-    # Example 2: Sync only tags starting with 'v1.' for the 'gadgets/ui' repository.
-    # Also, give it a custom name in our account.
-    {
-      source      = "111122223333.dkr.ecr.us-east-1.amazonaws.com/gadgets/ui"
-      destination = "my-team/ui-gadgets"
-      tags        = ["v1.*"]
-    },
-
-    # Example 3: Sync only the 'latest' or 'stable' tag for the 'project/api' repo.
-    {
-      source = "111122223333.dkr.ecr.us-east-1.amazonaws.com/project/api"
-      tags   = ["{latest,stable}"]
-    },
-
-    # Example 4: Sync tags that look like semantic versions for a shared library.
-    {
-      source = "111122223333.dkr.ecr.us-east-1.amazonaws.com/team-a/shared-library"
-      tags = [
-        "v?.?.?", # Matches v1.2.3, but not v1.2.34
-        "v?.?"    # Matches v1.2, but not v1.23
-      ]
-    }
-  ]
-
-  # 'repo_defaults' defines default settings for any repositories created by this module.
-  repo_defaults = {
-    scan_on_push     = true
-    tag_immutability = true
-  }
-}
-```
-
-### Private VPC Deployment
-
-By default, this module attempts to deploy the Fargate task to the default VPC in your account. If you do not have a default VPC or wish to use a specific private VPC, you must provide the `task_vpc_id` and a list of `task_subnet_ids`.
-
-**When using a private VPC, you are responsible for ensuring the necessary VPC endpoints are created and configured.** The Fargate task requires network access to the following AWS services:
-
-- **ECR API**: `com.amazonaws.<region>.ecr.api` (Interface)
-- **ECR DKR**: `com.amazonaws.<region>.ecr.dkr` (Interface)
-- **S3**: `com.amazonaws.<region>.s3` (Gateway - required for S3 config and by ECR endpoints)
-- **CloudWatch Logs**: `com.amazonaws.<region>.logs` (Interface)
-
-**Example Configuration:**
-
-```hcl
-module "ecr_pull_sync" {
-  source = "..."
-
-  # ... other required variables ...
-
-  # --- Private Networking ---
-  task_vpc_id           = "vpc-0123456789abcdef0"
-  task_subnet_ids       = ["subnet-0123456789abcdef0", "subnet-fedcba9876543210"]
-  task_assign_public_ip = false
-}
-```
+<!-- prettier-ignore-end -->
+<!-- END_TF_DOCS -->
