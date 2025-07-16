@@ -61,22 +61,24 @@ locals {
     )
   ])
 
-  # The list of destination repository ARNs is constructed assuming that the
-  # destination repositories are in the same AWS account and region where the
-  # module is deployed.
-  destination_repo_arns = distinct([
+  # Determine the name for each destination repository. Use the explicit
+  # 'destination' if provided, otherwise extract it from the 'source' URI.
+  destination_repo_names = [
     for repo in var.config.repos :
+    coalesce(repo.destination, join("/", slice(split("/", repo.source), 1, length(split("/", repo.source)))))
+  ]
+
+  # The list of destination repository ARNs is constructed using the current
+  # account and region. It applies wildcards for multi-level paths.
+  destination_repo_arns = distinct([
+    for name in local.destination_repo_names :
     format("arn:aws:ecr:%s:%s:repository/%s",
       data.aws_region.current.name,
       data.aws_caller_identity.current.account_id,
-      # Determine the repository name, using destination if provided, otherwise source
       (
-        # Check if the repository path has multiple levels
-        strcontains(coalesce(repo.destination, join("/", slice(split("/", repo.source), 1, length(split("/", repo.source))))), "/") ?
-        # If so, take the first level and add a wildcard
-        "${split("/", coalesce(repo.destination, join("/", slice(split("/", repo.source), 1, length(split("/", repo.source))))))[0]}/*" :
-        # Otherwise, use the exact repository path
-        coalesce(repo.destination, join("/", slice(split("/", repo.source), 1, length(split("/", repo.source)))))
+        strcontains(name, "/") ?
+        "${split("/", name)[0]}/*" :
+        name
       )
     )
   ])
