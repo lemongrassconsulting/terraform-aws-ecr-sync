@@ -42,3 +42,11 @@ config = {
 # task_vpc_id           = "vpc-0123456789abcdef0"
 # task_subnet_ids       = ["subnet-0123456789abcdef0", "subnet-fedcba9876543210"]
 # task_assign_public_ip = false
+
+# --- Optional: S3 Bucket Configuration ---
+# s3_bucket_name = "my-custom-ecr-sync-config-bucket"
+# s3_bucket_kms_key_arn = "arn:aws:kms:us-east-1:111122223333:key/your-s3-kms-key-id"
+# s3_bucket_noncurrent_version_expiration_days = 60
+# s3_bucket_access_logging_target_bucket = "your-access-log-bucket"
+# s3_bucket_access_logging_target_prefix = "ecr-sync-logs/"
+# s3_bucket_abort_incomplete_multipart_upload_days = 14

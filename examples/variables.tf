@@ -73,3 +73,40 @@ variable "task_assign_public_ip" {
   type        = bool
   default     = true
 }
+
+# --- Optional S3 Bucket Configuration ---
+variable "s3_bucket_name" {
+  description = "Optional: The name of the S3 bucket to create. If not provided, a name will be generated."
+  type        = string
+  default     = null
+}
+
+variable "s3_bucket_kms_key_arn" {
+  description = "Optional: The ARN of the KMS key to use for encrypting the S3 bucket. If not provided, AES256 encryption will be used."
+  type        = string
+  default     = null
+}
+
+variable "s3_bucket_noncurrent_version_expiration_days" {
+  description = "Optional: The number of days to keep noncurrent object versions in the S3 bucket. Defaults to 30."
+  type        = number
+  default     = 30
+}
+
+variable "s3_bucket_abort_incomplete_multipart_upload_days" {
+  description = "Optional: The number of days after which to abort incomplete multipart uploads. Defaults to 7."
+  type        = number
+  default     = 7
+}
+
+variable "s3_bucket_access_logging_target_bucket" {
+  description = "Optional: The name of the S3 bucket to use for access logging. If not provided, access logging will be disabled."
+  type        = string
+  default     = null
+}
+
+variable "s3_bucket_access_logging_target_prefix" {
+  description = "Optional: The prefix to use for access logs. Defaults to 'log/'."
+  type        = string
+  default     = "log/"
+}
