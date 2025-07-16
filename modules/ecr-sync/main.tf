@@ -140,6 +140,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "config" {
     id     = "expire-noncurrent-versions"
     status = "Enabled"
 
+    filter {}
+
     noncurrent_version_expiration {
       noncurrent_days = var.s3_bucket_noncurrent_version_expiration_days
     }
@@ -148,6 +150,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "config" {
   rule {
     id     = "abort-incomplete-multipart-uploads"
     status = "Enabled"
+
+    filter {}
 
     abort_incomplete_multipart_upload {
       days_after_initiation = var.s3_bucket_abort_incomplete_multipart_upload_days
@@ -323,6 +327,12 @@ resource "aws_iam_policy" "s3_kms_policy" {
 }
 
 resource "aws_iam_role_policy_attachment" "s3_kms_policy" {
+  count      = var.s3_bucket_kms_key_arn != null ? 1 : 0
+  role       = aws_iam_role.task_role.name
+  policy_arn = aws_iam_policy.s3_kms_policy[0].arn
+}
+
+resource "aws_iam_role_policy_attachment" "task_execution_s3_kms_policy" {
   count      = var.s3_bucket_kms_key_arn != null ? 1 : 0
   role       = aws_iam_role.task_execution_role.name
   policy_arn = aws_iam_policy.s3_kms_policy[0].arn
