@@ -40,13 +40,48 @@ locals {
   env_file_content = join("\n", local.all_vars)
 
   # --- ECR Repository ARNs for IAM Policy ---
-  source_repo_arns = [
-    for repo in var.config.repos : "arn:aws:ecr:${split(".", split("/", repo.source)[0])[3]}:${split(".", split("/", repo.source)[0])[0]}:repository/${split("/", repo.source)[1]}"
+  # The list of source repository ARNs is constructed by parsing the source
+  # string, which is always expected to be a full ECR URI.
+  source_repo_arns = distinct([
+    for repo in var.config.repos :
+    format("arn:aws:ecr:%s:%s:repository/%s",
+      # Parse the region from the source URI
+      element(split(".", element(split("/", repo.source), 0)), 3),
+      # Parse the account ID from the source URI
+      element(split(".", element(split("/", repo.source), 0)), 0),
+      # Get the repository path
+      (
+        # Check if the repository path has multiple levels
+        strcontains(join("/", slice(split("/", repo.source), 1, length(split("/", repo.source)))), "/") ?
+        # If so, take the first level and add a wildcard
+        "${split("/", join("/", slice(split("/", repo.source), 1, length(split("/", repo.source)))))[0]}/*" :
+        # Otherwise, use the exact repository path
+        join("/", slice(split("/", repo.source), 1, length(split("/", repo.source))))
+      )
+    )
+  ])
+
+  # Determine the name for each destination repository. Use the explicit
+  # 'destination' if provided, otherwise extract it from the 'source' URI.
+  destination_repo_names = [
+    for repo in var.config.repos :
+    coalesce(repo.destination, join("/", slice(split("/", repo.source), 1, length(split("/", repo.source)))))
   ]
 
-  destination_repo_arns = [
-    for repo in var.config.repos : "arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/${coalesce(repo.destination, split("/", repo.source)[1])}"
-  ]
+  # The list of destination repository ARNs is constructed using the current
+  # account and region. It applies wildcards for multi-level paths.
+  destination_repo_arns = distinct([
+    for name in local.destination_repo_names :
+    format("arn:aws:ecr:%s:%s:repository/%s",
+      data.aws_region.current.name,
+      data.aws_caller_identity.current.account_id,
+      (
+        strcontains(name, "/") ?
+        "${split("/", name)[0]}/*" :
+        name
+      )
+    )
+  ])
 
   all_repo_arns = distinct(concat(local.source_repo_arns, local.destination_repo_arns))
 
@@ -57,6 +92,11 @@ locals {
         Action   = ["ecr:GetAuthorizationToken"]
         Effect   = "Allow"
         Resource = "*"
+      },
+      {
+        Action   = ["ecr:DescribeRepositories"]
+        Effect   = "Allow"
+        Resource = "arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/*"
       }
     ],
     # Read permissions
