@@ -40,13 +40,44 @@ locals {
   env_file_content = join("\n", local.all_vars)
 
   # --- ECR Repository ARNs for IAM Policy ---
-  source_repo_arns = [
-    for repo in var.config.repos : "arn:aws:ecr:${split(".", split("/", repo.source)[0])[3]}:${split(".", split("/", repo.source)[0])[0]}:repository/${split("/", repo.source)[1]}"
-  ]
+  # The list of source repository ARNs is constructed by parsing the source
+  # string. The source can be a full ECR URI (e.g.,
+  # <account_id>.dkr.ecr.<region>.amazonaws.com/<repo_name>) or a simple
+  # repository name for repositories in the current account and region.
+  source_repo_arns = distinct([
+    for repo in var.config.repos :
+    (
+      strcontains(repo.source, ".dkr.ecr.") ?
+      # It's a full URI
+      format("arn:aws:ecr:%s:%s:repository/%s",
+        element(split(".", element(split("/", repo.source), 0)), 3),
+        element(split(".", element(split("/", repo.source), 0)), 0),
+        join("/", slice(split("/", repo.source), 1, length(split("/", repo.source))))
+      ) :
+      # It's a simple name
+      "arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/${repo.source}"
+    )
+  ])
 
-  destination_repo_arns = [
-    for repo in var.config.repos : "arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/${coalesce(repo.destination, split("/", repo.source)[1])}"
-  ]
+  # The list of destination repository ARNs is constructed assuming that the
+  # destination repositories are in the same AWS account and region where the
+  # module is deployed. If a destination is not specified, it defaults to the
+  # source repository name.
+  destination_repo_arns = distinct([
+    for repo in var.config.repos :
+    "arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/${
+      coalesce(
+        repo.destination,
+        (
+          strcontains(repo.source, ".dkr.ecr.") ?
+          # Extract repo name from full URI
+          join("/", slice(split("/", repo.source), 1, length(split("/", repo.source)))) :
+          # Or use the source as is (simple name)
+          repo.source
+        )
+      )
+    }"
+  ])
 
   all_repo_arns = distinct(concat(local.source_repo_arns, local.destination_repo_arns))
 
