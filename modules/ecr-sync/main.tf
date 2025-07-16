@@ -41,43 +41,44 @@ locals {
 
   # --- ECR Repository ARNs for IAM Policy ---
   # The list of source repository ARNs is constructed by parsing the source
-  # string. The source can be a full ECR URI (e.g.,
-  # <account_id>.dkr.ecr.<region>.amazonaws.com/<repo_name>) or a simple
-  # repository name for repositories in the current account and region.
-  # To keep the policy size small, we use a wildcard based on the first part of the repo path.
+  # string, which is always expected to be a full ECR URI.
   source_repo_arns = distinct([
     for repo in var.config.repos :
-    (
-      strcontains(repo.source, ".dkr.ecr.") ?
-      # It's a full URI
-      format("arn:aws:ecr:%s:%s:repository/%s/*",
-        element(split(".", element(split("/", repo.source), 0)), 3),
-        element(split(".", element(split("/", repo.source), 0)), 0),
-        split("/", join("/", slice(split("/", repo.source), 1, length(split("/", repo.source)))))[0]
-      ) :
-      "arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/${split("/", repo.source)[0]}/*"
+    format("arn:aws:ecr:%s:%s:repository/%s",
+      # Parse the region from the source URI
+      element(split(".", element(split("/", repo.source), 0)), 3),
+      # Parse the account ID from the source URI
+      element(split(".", element(split("/", repo.source), 0)), 0),
+      # Get the repository path
+      (
+        # Check if the repository path has multiple levels
+        strcontains(join("/", slice(split("/", repo.source), 1, length(split("/", repo.source)))), "/") ?
+        # If so, take the first level and add a wildcard
+        "${split("/", join("/", slice(split("/", repo.source), 1, length(split("/", repo.source)))))[0]}/*" :
+        # Otherwise, use the exact repository path
+        join("/", slice(split("/", repo.source), 1, length(split("/", repo.source))))
+      )
     )
   ])
 
   # The list of destination repository ARNs is constructed assuming that the
   # destination repositories are in the same AWS account and region where the
-  # module is deployed. If a destination is not specified, it defaults to the
-  # source repository name.
-  # To keep the policy size small, we use a wildcard based on the first part of the repo path.
+  # module is deployed.
   destination_repo_arns = distinct([
     for repo in var.config.repos :
-    "arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/${
-      split("/", coalesce(
-        repo.destination,
-        (
-          strcontains(repo.source, ".dkr.ecr.") ?
-          # Extract repo name from full URI
-          join("/", slice(split("/", repo.source), 1, length(split("/", repo.source)))) :
-          # Or use the source as is (simple name)
-          repo.source
-        )
-      ))[0]
-    }/*"
+    format("arn:aws:ecr:%s:%s:repository/%s",
+      data.aws_region.current.name,
+      data.aws_caller_identity.current.account_id,
+      # Determine the repository name, using destination if provided, otherwise source
+      (
+        # Check if the repository path has multiple levels
+        strcontains(coalesce(repo.destination, join("/", slice(split("/", repo.source), 1, length(split("/", repo.source))))), "/") ?
+        # If so, take the first level and add a wildcard
+        "${split("/", coalesce(repo.destination, join("/", slice(split("/", repo.source), 1, length(split("/", repo.source))))))[0]}/*" :
+        # Otherwise, use the exact repository path
+        coalesce(repo.destination, join("/", slice(split("/", repo.source), 1, length(split("/", repo.source)))))
+      )
+    )
   ])
 
   all_repo_arns = distinct(concat(local.source_repo_arns, local.destination_repo_arns))
