@@ -336,7 +336,8 @@ resource "aws_iam_policy" "task_execution_kms_policy" {
       {
         Action = [
           "kms:GenerateDataKey",
-          "kms:Decrypt"
+          "kms:Decrypt",
+          "kms:DescribeKey"
         ]
         Effect   = "Allow"
         Resource = var.task_log_kms_key_id
@@ -358,7 +359,10 @@ resource "aws_iam_policy" "s3_kms_policy" {
     Version = "2012-10-17"
     Statement = [
       {
-        Action   = "kms:Decrypt"
+        Action = [
+          "kms:Decrypt",
+          "kms:DescribeKey"
+        ]
         Effect   = "Allow"
         Resource = var.s3_bucket_kms_key_arn
       }
