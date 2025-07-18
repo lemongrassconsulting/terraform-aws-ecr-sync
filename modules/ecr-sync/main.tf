@@ -352,6 +352,11 @@ resource "aws_iam_role_policy_attachment" "task_execution_kms_policy" {
   policy_arn = aws_iam_policy.task_execution_kms_policy[0].arn
 }
 
+data "aws_kms_key" "s3_bucket_kms_key" {
+  count  = var.s3_bucket_kms_key_arn != null ? 1 : 0
+  key_id = var.s3_bucket_kms_key_arn
+}
+
 resource "aws_iam_policy" "s3_kms_policy" {
   count = var.s3_bucket_kms_key_arn != null ? 1 : 0
   name  = "${var.namespace}-s3-kms-policy"
@@ -364,7 +369,7 @@ resource "aws_iam_policy" "s3_kms_policy" {
           "kms:DescribeKey"
         ]
         Effect   = "Allow"
-        Resource = var.s3_bucket_kms_key_arn
+        Resource = data.aws_kms_key.s3_bucket_kms_key[0].arn
       }
     ]
   })
@@ -413,6 +418,11 @@ resource "aws_iam_role_policy_attachment" "task_role_policy" {
   policy_arn = aws_iam_policy.task_policy.arn
 }
 
+data "aws_kms_key" "repo_defaults_kms_key" {
+  count  = var.config.repo_defaults.kms_key_arn != null ? 1 : 0
+  key_id = var.config.repo_defaults.kms_key_arn
+}
+
 resource "aws_iam_policy" "task_kms_policy" {
   count = var.config.repo_defaults.kms_key_arn != null ? 1 : 0
   name  = "${var.namespace}-task-kms-policy"
@@ -429,7 +439,7 @@ resource "aws_iam_policy" "task_kms_policy" {
           "kms:GenerateDataKeyWithoutPlaintext"
         ]
         Effect   = "Allow"
-        Resource = var.config.repo_defaults.kms_key_arn
+        Resource = data.aws_kms_key.repo_defaults_kms_key[0].arn
       }
     ]
   })
