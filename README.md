@@ -193,18 +193,33 @@ config = {
 }
 ```
 
-### Private VPC Deployment
+### Networking and VPC Deployment
 
-By default, this module attempts to deploy the Fargate task to the default VPC in your account. If you do not have a default VPC or wish to use a specific private VPC, you must provide the `task_vpc_id` and a list of `task_subnet_ids`.
+By default, this module deploys the Fargate task to the default VPC in your account with public internet access. If you do not have a default VPC or wish to use a specific private VPC with VPC endpoints, you must provide networking variables.
 
-**When using a private VPC, you are responsible for ensuring the necessary VPC endpoints are created and configured.** The Fargate task requires network access to the following AWS services:
+#### Automatic Security Group Creation
+
+To simplify deployment, the module includes logic to automatically create a security group with appropriate egress rules under the following conditions:
+
+- You provide a `task_vpc_id`.
+- You **do not** provide `task_security_groups`.
+
+The behavior of the created security group is controlled by the `task_assign_public_ip` variable:
+
+- **Public Deployment (`task_assign_public_ip = true`)**: The security group will have an egress rule allowing outbound traffic to the internet (`0.0.0.0/0`). This is the default and is suitable for tasks that need to pull images from public ECR registries or other internet resources.
+- **Private Deployment (`task_assign_public_ip = false`)**: The security group will have a restrictive egress rule that only allows outbound HTTPS (port 443) traffic to destinations within the VPC's own CIDR block. This is designed for use with VPC endpoints, ensuring the task can communicate with AWS services privately without having broader internet access.
+
+#### Private VPC Deployment with Endpoints
+
+When using a private VPC, you are responsible for ensuring the necessary VPC endpoints are created and configured. The Fargate task requires network access to the following AWS services:
 
 - **ECR API**: `com.amazonaws.<region>.ecr.api` (Interface)
 - **ECR DKR**: `com.amazonaws.<region>.ecr.dkr` (Interface)
 - **S3**: `com.amazonaws.<region>.s3` (Gateway - required for S3 config and by ECR endpoints)
 - **CloudWatch Logs**: `com.amazonaws.<region>.logs` (Interface)
+- **KMS**: `com.amazonaws.<region>.kms` (Interface - required if using KMS keys for encryption)
 
-**Example Configuration:**
+**Example Private Configuration:**
 
 ```hcl
 module "ecr_pull_sync" {
@@ -215,6 +230,7 @@ module "ecr_pull_sync" {
   # --- Private Networking ---
   task_vpc_id           = "vpc-0123456789abcdef0"
   task_subnet_ids       = ["subnet-0123456789abcdef0", "subnet-fedcba9876543210"]
-  task_assign_public_ip = false
+  task_assign_public_ip = false # This triggers the private egress rule in the auto-created SG
+  # task_security_groups is omitted to allow the module to create one automatically.
 }
 ```

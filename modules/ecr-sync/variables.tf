@@ -60,19 +60,25 @@ variable "task_ephemeral_storage_size" {
 # --- Optional Networking Configuration ---
 
 variable "task_vpc_id" {
-  description = "Optional: The ID of the VPC to deploy the Fargate task into. If not provided, the default VPC is used."
+  description = "Optional: The ID of the VPC to deploy the Fargate task into. If not provided, the default VPC is used. Providing a VPC ID is required for private deployments."
   type        = string
   default     = null
 }
 
 variable "task_subnet_ids" {
-  description = "Optional: A list of subnet IDs to deploy the Fargate task into. Required if vpc_id is provided."
+  description = "Optional: A list of subnet IDs to deploy the Fargate task into. Required if a `task_vpc_id` is provided."
+  type        = list(string)
+  default     = null
+}
+
+variable "task_security_groups" {
+  description = "Optional: A list of security group IDs to associate with the Fargate task. If a `task_vpc_id` is provided but this is left null, a new security group will be created automatically with appropriate egress rules."
   type        = list(string)
   default     = null
 }
 
 variable "task_assign_public_ip" {
-  description = "Whether to assign a public IP to the Fargate task. Should be false for private subnets."
+  description = "Whether to assign a public IP to the Fargate task. Set to `false` for private subnets that use VPC endpoints. This variable also controls the egress rules of the auto-created security group: `true` allows internet access, while `false` restricts egress to the VPC's CIDR block for endpoint communication."
   type        = bool
   default     = true
 }

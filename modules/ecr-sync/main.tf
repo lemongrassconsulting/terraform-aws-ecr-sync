@@ -148,6 +148,11 @@ data "aws_vpc" "default" {
   default = true
 }
 
+data "aws_vpc" "selected" {
+  count = var.task_vpc_id != null ? 1 : 0
+  id    = var.task_vpc_id
+}
+
 data "aws_subnets" "default" {
   count = var.task_subnet_ids == null ? 1 : 0
   filter {
@@ -468,8 +473,46 @@ resource "aws_cloudwatch_event_target" "this" {
     launch_type         = "FARGATE"
     network_configuration {
       subnets          = var.task_subnet_ids == null ? data.aws_subnets.default[0].ids : var.task_subnet_ids
+      security_groups  = var.task_security_groups != null ? var.task_security_groups : (var.task_vpc_id != null ? [aws_security_group.this[0].id] : null)
       assign_public_ip = var.task_assign_public_ip
     }
+  }
+}
+
+resource "aws_security_group" "this" {
+  #checkov:skip=CKV2_AWS_5:This security group is dynamically attached to the ECS task by the EventBridge rule at runtime.
+  count = var.task_vpc_id != null && var.task_security_groups == null ? 1 : 0
+
+  name        = "${var.namespace}-ecr-pull-sync"
+  description = "Security group for the ECR Pull Sync task"
+  vpc_id      = var.task_vpc_id
+
+  # Egress rule for public internet access
+  dynamic "egress" {
+    for_each = var.task_assign_public_ip ? [1] : []
+    content {
+      description = "Allow all outbound traffic for public internet access"
+      from_port   = 0
+      to_port     = 0
+      protocol    = "-1"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+  }
+
+  # Egress rule for VPC endpoint access (private subnets)
+  dynamic "egress" {
+    for_each = !var.task_assign_public_ip ? [1] : []
+    content {
+      description = "Allow outbound HTTPS traffic to the VPC for endpoint access"
+      from_port   = 443
+      to_port     = 443
+      protocol    = "tcp"
+      cidr_blocks = [data.aws_vpc.selected[0].cidr_block]
+    }
+  }
+
+  tags = {
+    Name = "${var.namespace}-ecr-pull-sync"
   }
 }
 
