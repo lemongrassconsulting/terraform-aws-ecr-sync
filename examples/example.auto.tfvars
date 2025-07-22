@@ -37,11 +37,24 @@ config = {
 # task_log_kms_key_id = "arn:aws:kms:us-east-1:111122223333:key/your-kms-key-id"
 
 # --- Optional: Private Networking ---
+# The module can deploy the Fargate task into a specific VPC.
+#
+# If you provide a `task_vpc_id` but leave `task_security_groups` as null, the module
+# will automatically create a security group with appropriate egress rules.
+# The behavior of these rules is controlled by `task_assign_public_ip`:
+#  - true:  Allows all outbound traffic to the internet (0.0.0.0/0).
+#  - false: Restricts outbound traffic to the VPC's CIDR block on port 443 (HTTPS),
+#           ideal for use with VPC endpoints.
+#
 # To deploy into a private VPC, uncomment and configure the following variables.
 # Ensure your VPC has the necessary VPC endpoints for ECR, CloudWatch Logs, and S3.
+#
 # task_vpc_id           = "vpc-0123456789abcdef0"
 # task_subnet_ids       = ["subnet-0123456789abcdef0", "subnet-fedcba9876543210"]
 # task_assign_public_ip = false
+#
+# To use your own security groups, provide their IDs below.
+# task_security_groups  = ["sg-0123456789abcdef0"]
 
 # --- Optional: S3 Bucket Configuration ---
 # s3_bucket_name = "my-custom-ecr-sync-config-bucket"

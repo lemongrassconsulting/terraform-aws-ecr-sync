@@ -25,6 +25,7 @@ module "ecr_pull_sync" {
   task_log_kms_key_id   = var.task_log_kms_key_id
   task_vpc_id           = var.task_vpc_id
   task_subnet_ids       = var.task_subnet_ids
+  task_security_groups  = var.task_security_groups
   task_assign_public_ip = var.task_assign_public_ip
 
   s3_bucket_kms_key_arn                            = var.s3_bucket_kms_key_arn
